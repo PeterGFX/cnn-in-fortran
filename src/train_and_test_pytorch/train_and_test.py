@@ -8,78 +8,17 @@ Includes:
 """
 
 import os
+import sys
 import argparse
 from pathlib import Path
+from tqdm import tqdm
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
 
-
-def get_data_loaders(data_dir, batch_size, img_size):
-    """
-    Create training and validation DataLoaders using ImageFolder.
-    Directory structure:
-        data_dir/
-            train/
-                class0/
-                class1/
-            val/
-                class0/
-                class1/
-    """
-    # Define transforms for training and validation
-    train_transforms = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-    ])
-    val_transforms = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-    ])
-
-    train_dataset = datasets.ImageFolder(os.path.join(data_dir, 'train'), transform=train_transforms)
-    val_dataset = datasets.ImageFolder(os.path.join(data_dir, 'val'), transform=val_transforms)
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
-
-    return train_loader, val_loader
-
-
-class SimpleCNN(nn.Module):
-    def __init__(self, num_classes=1):
-        super(SimpleCNN, self).__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-        )
-        self.classifier = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(128 * (img_size // 8) * (img_size // 8), 256),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.5),
-            nn.Linear(256, num_classes),
-        )
-
-    def forward(self, x):
-        x = self.features(x)
-        x = x.view(x.size(0), -1)
-        x = self.classifier(x)
-        return x
-
+from models import SimpleCNN
+from dataloader import get_data_loaders
 
 def train_one_epoch(model, loader, criterion, optimizer, device):
     model.train()
@@ -139,7 +78,7 @@ def main(args):
     # Model, loss, optimizer
     global img_size
     img_size = args.img_size  # for classifier dimension
-    model = SimpleCNN().to(device)
+    model = SimpleCNN(img_size=img_size).to(device)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
@@ -151,9 +90,10 @@ def main(args):
         train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device)
         val_loss, val_acc = validate(model, val_loader, criterion, device)
 
-        print(f"Epoch [{epoch}/{args.epochs}]"
+        sys.stdout.write(f"Epoch [{epoch}/{args.epochs}]"
               f" Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}"
               f" | Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
+        sys.stdout.flush()
 
         # Checkpoint
         if val_acc > best_val_acc:
