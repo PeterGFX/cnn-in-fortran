@@ -1,0 +1,185 @@
+"""
+PyTorch Script for Binary Classification using a Convolutional Neural Network
+Includes:
+- DataLoader setup (ImageFolder)
+- Simple CNN definition
+- Training and validation loops
+- Model checkpointing
+"""
+
+import os
+import argparse
+from pathlib import Path
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+
+
+def get_data_loaders(data_dir, batch_size, img_size):
+    """
+    Create training and validation DataLoaders using ImageFolder.
+    Directory structure:
+        data_dir/
+            train/
+                class0/
+                class1/
+            val/
+                class0/
+                class1/
+    """
+    # Define transforms for training and validation
+    train_transforms = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])
+    val_transforms = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])
+
+    train_dataset = datasets.ImageFolder(os.path.join(data_dir, 'train'), transform=train_transforms)
+    val_dataset = datasets.ImageFolder(os.path.join(data_dir, 'val'), transform=val_transforms)
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+
+    return train_loader, val_loader
+
+
+class SimpleCNN(nn.Module):
+    def __init__(self, num_classes=1):
+        super(SimpleCNN, self).__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+        self.classifier = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(128 * (img_size // 8) * (img_size // 8), 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.5),
+            nn.Linear(256, num_classes),
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        return x
+
+
+def train_one_epoch(model, loader, criterion, optimizer, device):
+    model.train()
+    running_loss = 0.0
+    correct = 0
+    total = 0
+
+    for inputs, targets in loader:
+        inputs, targets = inputs.to(device), targets.to(device).float().unsqueeze(1)
+
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, targets)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item() * inputs.size(0)
+        preds = torch.sigmoid(outputs) >= 0.5
+        correct += (preds == targets.byte()).sum().item()
+        total += inputs.size(0)
+
+    epoch_loss = running_loss / total
+    epoch_acc = correct / total
+    return epoch_loss, epoch_acc
+
+
+def validate(model, loader, criterion, device):
+    model.eval()
+    running_loss = 0.0
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for inputs, targets in loader:
+            inputs, targets = inputs.to(device), targets.to(device).float().unsqueeze(1)
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+
+            running_loss += loss.item() * inputs.size(0)
+            preds = torch.sigmoid(outputs) >= 0.5
+            correct += (preds == targets.byte()).sum().item()
+            total += inputs.size(0)
+
+    epoch_loss = running_loss / total
+    epoch_acc = correct / total
+    return epoch_loss, epoch_acc
+
+
+def main(args):
+    # Device configuration
+    device = torch.device('cuda' if torch.cuda.is_available() and not args.no_cuda else 'cpu')
+    print(f"Using device: {device}")
+
+    # Data loaders
+    train_loader, val_loader = get_data_loaders(args.data_dir, args.batch_size, args.img_size)
+
+    # Model, loss, optimizer
+    global img_size
+    img_size = args.img_size  # for classifier dimension
+    model = SimpleCNN().to(device)
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+
+    best_val_acc = 0.0
+    os.makedirs(args.save_dir, exist_ok=True)
+
+    # Training loop
+    for epoch in range(1, args.epochs + 1):
+        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device)
+        val_loss, val_acc = validate(model, val_loader, criterion, device)
+
+        print(f"Epoch [{epoch}/{args.epochs}]"
+              f" Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}"
+              f" | Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
+
+        # Checkpoint
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            checkpoint_path = Path(args.save_dir) / 'best_model.pth'
+            torch.save(model.state_dict(), checkpoint_path)
+            print(f"Saved best model to {checkpoint_path}")
+
+    print("Training complete.")
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Binary Classification CNN Training Script")
+    parser.add_argument('--data-dir', type=str, required=True,
+                        help="Root directory of dataset containing train/ and val/ folders")
+    parser.add_argument('--save-dir', type=str, default='./checkpoints',
+                        help="Directory to save model checkpoints")
+    parser.add_argument('--img-size', type=int, default=128,
+                        help="Resize images to this size")
+    parser.add_argument('--batch-size', type=int, default=32,
+                        help="Batch size for training and validation")
+    parser.add_argument('--epochs', type=int, default=20,
+                        help="Number of training epochs")
+    parser.add_argument('--lr', type=float, default=1e-3,
+                        help="Learning rate for optimizer")
+    parser.add_argument('--no-cuda', action='store_true',
+                        help="Disable CUDA even if available")
+    args = parser.parse_args()
+    main(args)
