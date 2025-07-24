@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import torch
 from dataset import T_2M_Dataset
 
-def T_2M_preporcessor(t_arr, x_size=300, y_size=300):
+def T_2M_preporcessor(t_arr, x_size=320, y_size=320):
 
     return t_arr[:,:x_size,:y_size]
 

@@ -46,10 +46,10 @@ class T_2M_Dataset(Dataset):
         if self.transform:
             temp_fields = self.transform(temp_fields)
 
-        temp_fields = temp_fields.unsqueeze(1)
+        temp_fields = temp_fields#.unsqueeze(1)
         
-        inputs = temp_fields[:self.in_len,:,:,:]    # shape: (T, C, H, W)
-        targets = temp_fields[self.in_len:self.in_len+self.out_len,:,:,:]  # shape: (T, C, H, W)
+        inputs = temp_fields[:self.in_len,:,:]    # shape: (T, C, H, W)
+        targets = temp_fields[self.in_len:self.in_len+self.out_len,:,:]  # shape: (T, C, H, W)
 
         return inputs, targets
     

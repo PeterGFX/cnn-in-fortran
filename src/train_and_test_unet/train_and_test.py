@@ -28,7 +28,6 @@ def train_one_epoch(model, loader, criterion, optimizer, device):
 
     for inputs, targets in loader:
         inputs, targets = inputs.to(device), targets.to(device).float()
-
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = criterion(outputs, targets)
@@ -38,14 +37,14 @@ def train_one_epoch(model, loader, criterion, optimizer, device):
         #loss calculation
         running_loss += loss.item() * inputs.size(0) #loss * batch size
         #accuracy calculation
-        preds = torch.sigmoid(outputs) >= 0.5 
-        correct += (preds == targets.byte()).sum().item()
+        # preds = torch.sigmoid(outputs) >= 0.5 
+        # correct += (preds == targets.byte()).sum().item()
 
         total += inputs.size(0)
 
     epoch_loss = running_loss / total
-    epoch_acc = correct / total
-    return epoch_loss, epoch_acc
+    # epoch_acc = correct / total
+    return epoch_loss#, epoch_acc
 
 
 def validate(model, loader, criterion, device):
@@ -62,13 +61,13 @@ def validate(model, loader, criterion, device):
 
             #loss calcuation
             running_loss += loss.item() * inputs.size(0)
-            preds = torch.sigmoid(outputs) >= 0.5
-            correct += (preds == targets.byte()).sum().item()
+            # preds = torch.sigmoid(outputs) >= 0.5
+            # correct += (preds == targets.byte()).sum().item()
             total += inputs.size(0)
 
     epoch_loss = running_loss / total
-    epoch_acc = correct / total
-    return epoch_loss, epoch_acc
+    # epoch_acc = correct / total
+    return epoch_loss #, epoch_acc
 
 
 def main(args):
