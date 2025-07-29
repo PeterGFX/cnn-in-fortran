@@ -78,7 +78,8 @@ def main(args):
     # Data loaders
     train_loader, val_loader = get_dataloaders(args.batch_size,
                                                in_len=args.in_len,
-                                               out_len=args.out_len)
+                                               out_len=args.out_len,
+                                               data_dir=args.data_dir)
 
     # Model, loss, optimizer
     model = UNet(in_channels=args.in_len, 
@@ -113,8 +114,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Binary Classification CNN Training Script")
-    # parser.add_argument('--data-dir', type=str, required=True,
-    #                     help="Root directory of dataset containing train/ and val/ folders")
+    parser.add_argument('--data-dir', type=str, required=True,
+                        help="Root directory of dataset containing train/ and val/ folders")
     parser.add_argument('--save-dir', type=str, default='./checkpoints',
                         help="Directory to save model checkpoints")
     # parser.add_argument('--img-size', type=int, default=128,
