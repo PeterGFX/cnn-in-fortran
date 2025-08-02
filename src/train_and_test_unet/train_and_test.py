@@ -1,3 +1,4 @@
+
 """
 PyTorch Script for Binary Classification using a Convolutional Neural Network
 Includes:
@@ -11,7 +12,6 @@ import os
 import sys
 import argparse
 from pathlib import Path
-from tqdm import tqdm
 
 import torch
 import torch.nn as nn
@@ -55,7 +55,7 @@ def validate(model, loader, criterion, device):
 
     with torch.no_grad():
         for inputs, targets in loader:
-            inputs, targets = inputs.to(device), targets.to(device).float().unsqueeze(1)
+            inputs, targets = inputs.to(device), targets.to(device).float()
             outputs = model(inputs)
             loss = criterion(outputs, targets)
 
@@ -71,10 +71,11 @@ def validate(model, loader, criterion, device):
 
 
 def main(args):
-    # Device configuration
-    device = torch.device('cuda' if torch.cuda.is_available() and not args.no_cuda else 'cpu')
-    print(f"Using device: {device}")
 
+    # Device configuration
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}", flush=True)
+ 
     # Data loaders
     train_loader, val_loader = get_dataloaders(args.batch_size,
                                                in_len=args.in_len,
@@ -86,51 +87,48 @@ def main(args):
                  num_classes=args.out_len, 
                  depth=5, merge_mode='concat').to(device)
 
-    criterion = nn.MSELoss()
+    criterion = nn.L1Loss()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    best_val_acc = 0.0
+    best_val_loss = 10e5
     os.makedirs(args.save_dir, exist_ok=True)
 
+    print("Starting training...", flush=True)
     # Training loop
     for epoch in range(1, args.epochs + 1):
-        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device)
-        val_loss, val_acc = validate(model, val_loader, criterion, device)
-
+        train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
+        val_loss = validate(model, val_loader, criterion, device)
+        
         sys.stdout.write(f"Epoch [{epoch}/{args.epochs}]"
-              f" Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}"
-              f" | Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
+              f" Train Loss: {train_loss:.4f}" #Train Acc: {train_acc:.4f}
+              f" | Val Loss: {val_loss:.4f}\n") #Val Acc: {val_acc:.4f}
         sys.stdout.flush()
 
         # Checkpoint
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            checkpoint_path = Path(args.save_dir) / 'best_model.pth'
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            checkpoint_path = Path(args.save_dir) / 'best_model.pt'
             torch.save(model.state_dict(), checkpoint_path)
-            print(f"Saved best model to {checkpoint_path}")
+            print(f"Saved best model to {checkpoint_path}\n", flush=True)
 
-    print("Training complete.")
-
+    print("Training complete.", flush=True)
+    sys.stdout.flush()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Binary Classification CNN Training Script")
-    parser.add_argument('--data-dir', type=str, required=True,
+    parser.add_argument('--data-dir', type=str, default="/capstor/scratch/cscs/class172/cosmo_sample.zarr",
                         help="Root directory of dataset containing train/ and val/ folders")
-    parser.add_argument('--save-dir', type=str, default='./checkpoints',
+    parser.add_argument('--save-dir', type=str, default='./checkpoint',
                         help="Directory to save model checkpoints")
-    # parser.add_argument('--img-size', type=int, default=128,
-    #                     help="Resize images to this size")
     parser.add_argument('--in-len', type=int, default=5,
                         help="Batch size for training and validation")
     parser.add_argument('--out-len', type=int, default=5,
                         help="Batch size for training and validation")
     parser.add_argument('--batch-size', type=int, default=32,
                         help="Batch size for training and validation")
-    parser.add_argument('--epochs', type=int, default=20,
+    parser.add_argument('--epochs', type=int, default=10,
                         help="Number of training epochs")
     parser.add_argument('--lr', type=float, default=1e-3,
                         help="Learning rate for optimizer")
-    parser.add_argument('--no-cuda', action='store_true',
-                        help="Disable CUDA even if available")
     args = parser.parse_args()
     main(args)
