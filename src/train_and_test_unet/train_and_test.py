@@ -116,7 +116,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Binary Classification CNN Training Script")
-    parser.add_argument('--data-dir', type=str, default="/capstor/scratch/cscs/class172/cosmo_sample.zarr",
+    parser.add_argument('--data-dir', type=str, default="./data/cosmo_sample.zarr",
                         help="Root directory of dataset containing train/ and val/ folders")
     parser.add_argument('--save-dir', type=str, default='./checkpoint',
                         help="Directory to save model checkpoints")

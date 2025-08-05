@@ -12,7 +12,7 @@ def T_2M_preporcessor(t_arr, x_size=320, y_size=320):
     return t_arr[:,:x_size,:y_size]
 
 def get_dataloaders(batch_size, in_len, out_len, 
-                    val_split=200, data_dir="/capstor/scratch/cscs/class172/cosmo_sample.zarr"):
+                    val_split=200, data_dir="./data/cosmo_sample.zarr"):
 
     torch_dataset = T_2M_Dataset(
         root_dir=data_dir,

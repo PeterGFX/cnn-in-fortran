@@ -23,9 +23,9 @@ def gen_animation(seq, save_path):
         im.set_array(seq[frame,...])
         return im,
 
-    ani = animation.FuncAnimation(fig, updatefig,  blit=True, interval=500)
-    writer = animation.PillowWriter(fps=15,
-                                metadata=dict(artist='torch-cnn'))
+    ani = animation.FuncAnimation(fig, updatefig,  blit=True, interval=500, frames=seq.shape[0])
+    writer = animation.PillowWriter(fps=1,
+                                bitrate=1000)
     ani.save(save_path, writer=writer)
 
 if __name__ == '__main__':
@@ -41,7 +41,7 @@ if __name__ == '__main__':
                  num_classes=out_len, 
                  depth=5, merge_mode='concat').to(device)
     
-        model.load_state_dict(torch.load('./checkpoint/best_model.pt', weights_only=True))
+        model.load_state_dict(torch.load('./checkpoints/unet_v1.pt', weights_only=True))
         model.eval()
 
         test_loader, _ = get_dataloaders(1,
@@ -60,6 +60,10 @@ if __name__ == '__main__':
 
         if not os.path.exists("./results"):
             os.mkdir("results")
+
+        print(test_input.shape)
+        print(test_target.shape)
+        print(test_output.shape)
         
         gen_animation(np.concat([test_input, test_output], axis=0), save_path="./results/output.gif")
         gen_animation(np.concat([test_input, test_target], axis=0), save_path="./results/ground_truth.gif")
