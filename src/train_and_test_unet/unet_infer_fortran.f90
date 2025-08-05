@@ -26,32 +26,24 @@ contains
         type(torch_model) :: model
         type(torch_tensor), dimension(1) :: in_tensors
         type(torch_tensor), dimension(1) :: out_tensors
-        
+
+        real(wp), dimension(:,:,:,:), allocatable, target :: full_data
         real(wp), dimension(:,:,:,:), allocatable, target :: in_data
         real(wp), dimension(:,:,:,:), allocatable, target :: out_data
+        real(wp), dimension(:,:,:,:), allocatable, target :: gt_data
         
-        integer, parameter :: in_dims = 4
-        integer, parameter :: in_shape(in_dims) = [1, 5, 320, 320]
-        integer, parameter :: out_dims = 4
-        integer, parameter :: out_shape(out_dims) = [1, 5, 320, 320]
+        integer, parameter :: dims = 4
+        integer, parameter :: full_shape(dims) = [1, 10, 320, 320]
+        integer, parameter :: in_shape(dims) = [1, 5, 320, 320]
+        integer, parameter :: out_shape(dims) = [1, 5, 320, 320]
         
         ! Path to input data
         character(len=128) :: data_dir
-        ! Binary file containing input tensor
+        ! Binary file containing input and output tensor
         character(len=128) :: filename
-        ! Text file containing categories
-        character(len=128) :: filename_cats
         
-        ! Length of tensor and number of categories
+        ! Length of input and output tensor
         integer, parameter :: tensor_length = 512000 ! 5*320*320
-        integer, parameter :: N_cats = 1000
-        
-        ! Outputs
-        integer :: idx(2)
-        real(wp), dimension(:,:), allocatable :: probabilities
-        real(wp), parameter :: expected_prob = 0.8846225142478943_wp
-        character(len=128) :: categories(N_cats)
-        real(wp) :: probability
         
         ! Flag for testing
         logical :: test_pass
@@ -73,38 +65,29 @@ contains
         filename_cats =  trim(data_dir)//"/output_field_tensor.txt"
         
         ! Allocate one-dimensional input/output arrays, based on multiplication of all input/output dimension sizes
+        allocate(full_data(full_shape(1), full_shape(2), full_shape(3), full_shape(4)))
         allocate(in_data(in_shape(1), in_shape(2), in_shape(3), in_shape(4)))
-        allocate(out_data(out_shape(1), out_shape(2)))
-        allocate(probabilities(out_shape(1), out_shape(2)))
+        allocate(out_data(out_shape(1), out_shape(2), out_shape(3), out_shape(4)))
+        allocate(gt_data(out_shape(1), out_shape(2), out_shape(3), out_shape(4)))
         
-        call load_data(filename, tensor_length, in_data)
+        call load_data(filename, tensor_length, full_data)
+        in_data(:,:,:,:) = fulldata(:,1:5,:,:)
+        gt_data(:,:,:,:) = fulldata(:,6:10,:,:)
         
         ! Create input/output tensors from the above arrays
         call torch_tensor_from_array(in_tensors(1), in_data, torch_kCPU)
-        
         call torch_tensor_from_array(out_tensors(1), out_data, torch_kCPU)
         
         ! Load ML model (edit this line to use different models)
         call torch_model_load(model, args(1), torch_kCPU)
-        
+
+        ! TODO: Store output back to out_data and save.
         ! Infer
         call torch_model_forward(model, in_tensors, out_tensors)
-        
-        ! Load categories
-        call load_categories(filename_cats, N_cats, categories)
-        
-        ! Calculate probabilities and output results
-        call calc_probs(out_data, probabilities)
-        idx = maxloc(probabilities)
-        probability = maxval(probabilities)
-        
-        ! Check top probability matches expected value
-        test_pass = assert_isclose(probability, expected_prob, test_name="Check probability", &
-                                 rtol=1e-5)
-        
-        write (*,*) "Top result"
-        write (*,*) ""
-        write (*,*) trim(categories(idx(2))), " (id=", idx(2), "), : probability =", probability
+
+        ! TODO: correctly save Unet output to a dat file.
+        ! Save results
+        call write_output_to_dat(out_data, nx, ny, nz, filename)
         
         ! Cleanup
         call torch_delete(model)
@@ -112,14 +95,15 @@ contains
         call torch_delete(out_tensors)
         deallocate(in_data)
         deallocate(out_data)
-        deallocate(probabilities)
+        deallocate(all_data)
+        deallocate(gt_data)
         deallocate(args)
         
         if (.not. test_pass) then
             stop 999
         end if
         
-        write (*,*) "ResNet18 example ran successfully"
+        write (*,*) "UNET single inference ran successfully"
 
    end subroutine main
 
@@ -155,31 +139,10 @@ contains
 
    end subroutine load_data
 
-   subroutine load_categories(filename_cats, N_cats, categories)
-
-        character(len=*), intent(in) :: filename_cats
-        integer, intent(in) :: N_cats
-        character(len=128), intent(out) :: categories(N_cats)
-        
-        integer :: ios
-        character(len=100) :: ioerrmsg
-        
-        open (unit=11, file=filename_cats, form='formatted', access='stream', action='read', &
-            iostat=ios, iomsg=ioerrmsg)
-        if (ios /= 0) then
-            print *, ioerrmsg
-            stop 1
-        end if
-        
-        read(11, '(a)') categories
-        close(11)
-
-   end subroutine load_categories
-
-   subroutine write_3d_array_to_dat(arr, nx, ny, nz, filename)
+   subroutine write_output_to_dat(arr, in_channels, nx, ny, filename)
         ! Write a 3D real array to a binary .dat file using stream I/O
-        real, intent(in) :: arr(nx, ny, nz)
-        integer, intent(in) :: nx, ny, nz
+        integer, intent(in) :: in_channels, nx, ny
+        real, intent(in) :: arr(in_channels, nx, ny)
         character(len=*), intent(in) :: filename
         
         integer :: unit, ios
@@ -195,19 +158,6 @@ contains
         close(10)
         
         print *, "Array written to", trim(filename)
-   end subroutine write_3d_array_to_dat
-
-   subroutine calc_probs(out_data, probabilities)
-
-      real(wp), dimension(:,:), intent(in) :: out_data
-      real(wp), dimension(:,:), intent(out) :: probabilities
-      real(wp) :: prob_sum
-
-      ! Apply softmax function to calculate probabilties
-      probabilities = exp(out_data)
-      prob_sum = sum(probabilities)
-      probabilities = probabilities / prob_sum
-
-   end subroutine calc_probs
+   end subroutine write_output_to_dat
 
 end program inference
