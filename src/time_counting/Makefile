@@ -1,11 +1,11 @@
 FC = gfortran
 
-FFLAGS = -I/users/class191/FTorchbin/include \
-         -I/users/class191/FTorchbin/include/ftorch \
-         -I/users/class191/Project/FTorch/build/modules
+FFLAGS = -I/users/class171/FTorchbin/include \
+         -I/users/class171/FTorchbin/include/ftorch \
+         -I/users/class171/Project/FTorch/build/modules
 
 # CUDA Runtime 和 ftorch 库路径
-LDFLAGS = -L/users/class191/FTorchbin/lib64 -L/user-environment/env/default/lib64 -lftorch -lcudart
+LDFLAGS = -L/users/class171/FTorchbin/lib64 -L/user-environment/env/default/lib64 -lftorch -lcudart
 
 SRC_VALIDATE = validate_fortran_cuda.f90
 SRC_INFER_CUDA = infer_fortran_cuda.f90

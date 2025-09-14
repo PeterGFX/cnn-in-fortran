@@ -1,5 +1,5 @@
 program inference
-   use, intrinsic :: iso_fortran_env, only : sp => real32
+   use, intrinsic :: iso_fortran_env, only : sp => real32, int64
    use ftorch, only : torch_model, torch_tensor, torch_kCPU, torch_delete, &
                       torch_tensor_from_array, torch_model_load, torch_model_forward
    implicit none
@@ -10,7 +10,7 @@ program inference
 contains
 
    subroutine main()
-      integer :: num_args, ix, num_runs, batch_size
+      integer :: num_args, ix, num_runs, batch_size, i
       character(len=128), dimension(:), allocatable :: args
       type(torch_model) :: model
       type(torch_tensor), dimension(1) :: in_tensors, out_tensors
@@ -21,7 +21,7 @@ contains
       character(len=128) :: data_dir, filename, out_filename
       integer, parameter :: tensor_length = 512000
       real(wp), dimension(:), allocatable :: inference_times
-      integer :: start_count, end_count, count_rate
+      integer(int64) :: start_count, end_count, count_rate
       real(wp) :: data_prep_time, model_load_time, start_time, end_time
       real(wp) :: avg_inference, std_inference, throughput
 
@@ -57,7 +57,9 @@ contains
       model_load_time = real(end_count - start_count, wp) / real(count_rate, wp)
 
       ! Warm up
-      call torch_model_forward(model, in_tensors, out_tensors)
+      do i = 1, 10
+         call torch_model_forward(model, in_tensors, out_tensors)
+      end do
 
       ! Inference
       num_runs = 100
@@ -69,6 +71,7 @@ contains
          inference_times(ix) = real(end_count - start_count, wp) / real(count_rate, wp)
       end do
 
+      print *, inference_times
       avg_inference = sum(inference_times)/num_runs
       std_inference = sqrt(sum((inference_times - avg_inference)**2)/num_runs)
       batch_size = in_shape(1)
