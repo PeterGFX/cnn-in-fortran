@@ -10,7 +10,7 @@ dataloader.py: Class for dataloader for both training and validation.\
 models.py: Implementation of the UNet model.\
 train_and_test.py: Main training and validation loop.\
 training_record_plot & visulization.py: Plotting scripts for results and training statistics.\
-pt2ts.py: Converts and save pytorch model to torchscript.\
+pt2ts.py: Converts and save pytorch model to torchscript.
 
 
 ### /src/time_counting:
@@ -27,4 +27,4 @@ get_one.ipynb: Notebook for extracting one sample from the dataset for inference
 infer_fortran_cpu.f90: code for inference in Fortran on CPU.\
 infer_fortran_cuda.f90: code for inference in Fortran on GPU.\
 models.py: same as in train_and_test_unet.\
-validate_fortran_cuda.f90: validation code for Fortran output (run in Validate.ipynb)\
+validate_fortran_cuda.f90: validation code for Fortran output (run in Validate.ipynb)
