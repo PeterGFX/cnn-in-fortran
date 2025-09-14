@@ -1,13 +1,3 @@
-
-"""
-PyTorch Script for Binary Classification using a Convolutional Neural Network
-Includes:
-- DataLoader setup (ImageFolder)
-- Simple CNN definition
-- Training and validation loops
-- Model checkpointing
-"""
-
 import os
 import sys
 import argparse
@@ -16,9 +6,11 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
 
 from models import UNet
 from dataloader import get_dataloaders
+from loss import MSE_TemporalDifference_Loss
 
 def train_one_epoch(model, loader, criterion, optimizer, device):
     model.train()
@@ -71,9 +63,11 @@ def validate(model, loader, criterion, device):
 
 
 def main(args):
+    
+    model_name = "unet_d3_out1_gpu_L1"
 
     # Device configuration
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() and not args.no_gpu else 'cpu')
     print(f"Using device: {device}", flush=True)
  
     # Data loaders
@@ -85,15 +79,18 @@ def main(args):
     # Model, loss, optimizer
     model = UNet(in_channels=args.in_len, 
                  num_classes=args.out_len, 
-                 depth=5, merge_mode='concat').to(device)
+                 depth=3, merge_mode='concat', up_mode='transpose').to(device)
 
     criterion = nn.L1Loss()
+    # criterion = MSE_TemporalDifference_Loss()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     best_val_loss = 10e5
     os.makedirs(args.save_dir, exist_ok=True)
 
     print("Starting training...", flush=True)
+    train_loss_record = []
+    val_loss_record = []
     # Training loop
     for epoch in range(1, args.epochs + 1):
         train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
@@ -105,30 +102,37 @@ def main(args):
         sys.stdout.flush()
 
         # Checkpoint
+        train_loss_record.append(train_loss)
+        val_loss_record.append(val_loss)
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            checkpoint_path = Path(args.save_dir) / 'best_model.pt'
+            checkpoint_path = Path(args.save_dir) / f'{model_name}.pt'
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Saved best model to {checkpoint_path}\n", flush=True)
 
     print("Training complete.", flush=True)
-    sys.stdout.flush()
+    with open(f'./checkpoint/{model_name}_train.npy', 'wb') as f:
+        np.save(f, np.array(train_loss_record))
+    with open(f'./checkpoint/{model_name}_val.npy', 'wb') as f:   
+        np.save(f, np.array(val_loss_record))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Binary Classification CNN Training Script")
-    parser.add_argument('--data-dir', type=str, default="./data/cosmo_sample.zarr",
+    parser.add_argument('--data-dir', type=str, default="/capstor/scratch/cscs/class172/cosmo_sample.zarr",
                         help="Root directory of dataset containing train/ and val/ folders")
     parser.add_argument('--save-dir', type=str, default='./checkpoint',
                         help="Directory to save model checkpoints")
     parser.add_argument('--in-len', type=int, default=5,
                         help="Batch size for training and validation")
-    parser.add_argument('--out-len', type=int, default=5,
+    parser.add_argument('--out-len', type=int, default=1,
                         help="Batch size for training and validation")
     parser.add_argument('--batch-size', type=int, default=32,
                         help="Batch size for training and validation")
-    parser.add_argument('--epochs', type=int, default=10,
+    parser.add_argument('--epochs', type=int, default=50,
                         help="Number of training epochs")
-    parser.add_argument('--lr', type=float, default=1e-3,
+    parser.add_argument('--lr', type=float, default=1e-4,
                         help="Learning rate for optimizer")
+    parser.add_argument('--no-gpu', action='store_true',
+                        help="Whether to use GPU given cuda is available")
     args = parser.parse_args()
     main(args)
