@@ -204,12 +204,13 @@ class UNet(nn.Module):
         self.up_convs = nn.ModuleList(self.up_convs)
 
         self.reset_params()
-        
+
     @staticmethod
     def weight_init(m):
         if isinstance(m, nn.Conv2d):
             init.xavier_normal_(m.weight)
             init.constant_(m.bias, 0)
+
 
     def reset_params(self):
         for i, m in enumerate(self.modules()):
@@ -238,8 +239,9 @@ if __name__ == "__main__":
     """
     testing
     """
-    model = UNet(in_channels=5, num_classes=1, 
-                 depth=4, merge_mode='concat', up_mode='transpose')
-    total_params = sum(p.numel() for p in model.parameters())
-    print(model)
-    print(f"Total number of parameters: {total_params}")
+    model = UNet(in_channels=5, num_classes=10, depth=5, merge_mode='concat')
+    x = Variable(torch.FloatTensor(np.random.random((1, 5, 320, 320))))
+    out = model(x)
+    print(out.size())
+    loss = torch.sum(out)
+    loss.backward()
